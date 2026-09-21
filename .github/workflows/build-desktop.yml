@@ -109,9 +109,10 @@ jobs:
           key: theia-runtime-windows-${{ hashFiles('theia-ide/package.json') }}
       - name: yarn install
         working-directory: theia-ide
-        # --ignore-optional: bỏ native optional (vd cpu-features) cần Visual Studio
-        # để build — Theia không cần, tránh fail node-gyp trên runner Windows.
-        run: yarn install --network-timeout 600000 --ignore-optional
+        # KHÔNG dùng --ignore-optional: nó bỏ cả @nx/nx-win32-x64-msvc (native của
+        # Nx, là optionalDependency) -> lerna build:extensions fail. windows-2022
+        # có Visual Studio nên các native (cpu-features, drivelist...) compile được.
+        run: yarn install --network-timeout 600000
       - name: download plugins/python/java
         working-directory: theia-ide
         run: |
@@ -232,15 +233,16 @@ jobs:
       - name: theia build
         working-directory: theia-ide/applications/electron
         run: npx theia build --app-target=electron
-      - name: electron-builder (linux)
+      - name: electron-builder (linux, AppImage)
         working-directory: theia-ide/applications/electron
-        run: npx electron-builder --linux --publish never
+        # Chỉ AppImage (chạy mọi distro). .deb đòi maintainer email -> bỏ cho gọn;
+        # cần .deb thì thêm `linux.maintainer` trong electron-builder.yml.
+        run: npx electron-builder --linux AppImage --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: ide-linux
           path: |
             theia-ide/applications/electron/dist/*.AppImage
-            theia-ide/applications/electron/dist/*.deb
           if-no-files-found: warn
 
   # ---------------- RELEASE (chỉ khi push tag vX.Y.Z) ----------------
