@@ -84,7 +84,11 @@ jobs:
   # ---------------- RIKKEI IDE — Windows ----------------
   ide-windows:
     timeout-minutes: 60
-    runs-on: windows-latest
+    # windows-2022 có sẵn Visual Studio 2022 + C++ toolset (node-gyp tìm được).
+    # windows-latest đã chuyển sang image windows-2025 khiến node-gyp không dò ra VS.
+    runs-on: windows-2022
+    env:
+      GYP_MSVS_VERSION: "2022"
     steps:
       - uses: actions/checkout@v4
       - name: Bật long paths
@@ -194,8 +198,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Cài libfuse2 (AppImage)
-        run: sudo apt-get update && sudo apt-get install -y libfuse2
+      - name: Cài deps build native + AppImage (Linux)
+        # native-keymap cần libx11/libxkbfile; keytar cần libsecret; AppImage cần libfuse2.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libx11-dev libxkbfile-dev libsecret-1-dev libfuse2
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
