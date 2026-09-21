@@ -89,7 +89,7 @@ jobs:
           key: theia-runtime-windows-${{ hashFiles('theia-ide/package.json') }}
       - name: yarn install
         working-directory: theia-ide
-        run: yarn install --frozen-lockfile --network-timeout 600000
+        run: yarn install --network-timeout 600000
       - name: download plugins/python/java
         working-directory: theia-ide
         run: |
@@ -147,7 +147,7 @@ jobs:
           key: theia-runtime-macos-${{ matrix.name }}-${{ hashFiles('theia-ide/package.json') }}
       - name: yarn install
         working-directory: theia-ide
-        run: yarn install --frozen-lockfile --network-timeout 600000
+        run: yarn install --network-timeout 600000
       - name: download plugins/python/java
         working-directory: theia-ide
         run: |

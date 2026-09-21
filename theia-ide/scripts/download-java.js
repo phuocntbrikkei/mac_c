@@ -120,4 +120,7 @@ download(downloadUrl, tempTarGz, (err) => {
       fs.rmSync(tempExtractDir, { recursive: true, force: true });
     }
   }
+  // Ép thoát: sau redirect, socket https keep-alive có thể giữ event loop khiến
+  // node không tự thoát (treo trên CI). Việc đã xong nên exit(0) an toàn.
+  process.exit(0);
 });

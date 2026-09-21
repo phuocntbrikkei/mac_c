@@ -95,4 +95,6 @@ download(downloadUrl, tempTarGz, (err) => {
       fs.unlinkSync(tempTarGz);
     }
   }
+  // Ép thoát (tránh socket https keep-alive giữ event loop -> treo trên CI).
+  process.exit(0);
 });
