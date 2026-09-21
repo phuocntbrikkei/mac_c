@@ -26,9 +26,16 @@ jobs:
             name: windows
           - os: macos-14 # Apple Silicon; client build UNIVERSAL nên chạy cả Intel
             name: macos
+          - os: ubuntu-latest
+            name: linux
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Cài deps GTK/WebKit (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential pkg-config
       - uses: actions/setup-go@v5
         with:
           go-version: "stable"
@@ -52,17 +59,26 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: client
         run: wails build -platform darwin/universal -clean -ldflags "-s -w"
+      - name: Build client (Linux amd64)
+        if: runner.os == 'Linux'
+        working-directory: client
+        run: wails build -platform linux/amd64 -tags webkit2_41 -clean -ldflags "-s -w"
       - name: Zip macOS .app
         if: runner.os == 'macOS'
         working-directory: client/build/bin
         run: |
           for app in *.app; do ditto -c -k --sequesterRsrc --keepParent "$app" "../../../client-${app%.app}-macos-universal.zip"; done
+      - name: Đóng gói binary Linux
+        if: runner.os == 'Linux'
+        working-directory: client/build/bin
+        run: tar -czf ../../../client-linux-amd64.tar.gz *
       - uses: actions/upload-artifact@v4
         with:
           name: client-${{ matrix.name }}
           path: |
             client/build/bin/*.exe
             client-*-macos-universal.zip
+            client-linux-amd64.tar.gz
           if-no-files-found: warn
 
   # ---------------- RIKKEI IDE — Windows ----------------
@@ -89,7 +105,9 @@ jobs:
           key: theia-runtime-windows-${{ hashFiles('theia-ide/package.json') }}
       - name: yarn install
         working-directory: theia-ide
-        run: yarn install --network-timeout 600000
+        # --ignore-optional: bỏ native optional (vd cpu-features) cần Visual Studio
+        # để build — Theia không cần, tránh fail node-gyp trên runner Windows.
+        run: yarn install --network-timeout 600000 --ignore-optional
       - name: download plugins/python/java
         working-directory: theia-ide
         run: |
@@ -170,10 +188,58 @@ jobs:
             theia-ide/applications/electron/dist/*.dmg
           if-no-files-found: warn
 
+  # ---------------- RIKKEI IDE — Linux (AppImage + deb) ----------------
+  ide-linux:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cài libfuse2 (AppImage)
+        run: sudo apt-get update && sudo apt-get install -y libfuse2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "yarn"
+          cache-dependency-path: theia-ide/yarn.lock
+      - run: corepack enable
+      - name: Cache plugins + JRE + Python
+        uses: actions/cache@v4
+        with:
+          path: |
+            theia-ide/plugins
+            theia-ide/applications/electron/resources/java
+            theia-ide/applications/electron/resources/python
+          key: theia-runtime-linux-${{ hashFiles('theia-ide/package.json') }}
+      - name: yarn install
+        working-directory: theia-ide
+        run: yarn install --network-timeout 600000
+      - name: download plugins/python/java
+        working-directory: theia-ide
+        run: |
+          yarn download:plugins
+          yarn download:python
+          yarn download:java
+      - name: build:extensions
+        working-directory: theia-ide
+        run: yarn build:extensions
+      - name: theia build
+        working-directory: theia-ide/applications/electron
+        run: npx theia build --app-target=electron
+      - name: electron-builder (linux)
+        working-directory: theia-ide/applications/electron
+        run: npx electron-builder --linux --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ide-linux
+          path: |
+            theia-ide/applications/electron/dist/*.AppImage
+            theia-ide/applications/electron/dist/*.deb
+          if-no-files-found: warn
+
   # ---------------- RELEASE (chỉ khi push tag vX.Y.Z) ----------------
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [client, ide-windows, ide-macos]
+    needs: [client, ide-windows, ide-macos, ide-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -184,7 +250,7 @@ jobs:
       - name: Gộp file
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' \) -exec cp {} release/ \;
+          find artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.tar.gz' \) -exec cp {} release/ \;
           ls -la release
       - uses: softprops/action-gh-release@v2
         with:
