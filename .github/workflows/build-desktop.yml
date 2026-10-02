@@ -29,6 +29,8 @@ jobs:
           - os: ubuntu-latest
             name: linux
     runs-on: ${{ matrix.os }}
+    env:
+      GOTOOLCHAIN: local # không tự tải Go mới hơn (giữ đúng 1.24 -> chạy được macOS 11)
     steps:
       - uses: actions/checkout@v4
       - name: Cài deps GTK/WebKit (Linux)
@@ -36,15 +38,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential pkg-config
+      # GHIM Go 1.24.x: bản CUỐI còn chạy trên macOS 11 Big Sur (Go 1.25+ đòi macOS 12/13 ->
+      # runtime build cho macOS 13, app chết trên máy SV macOS 11/12). go.mod client = 1.23.
       - uses: actions/setup-go@v5
         with:
-          go-version: "stable"
+          go-version: "1.24.x"
           cache-dependency-path: client/go.sum
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0 # khớp go.mod (v2.12.0)
       - name: Add GOPATH/bin to PATH (unix)
         if: runner.os != 'Windows'
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"

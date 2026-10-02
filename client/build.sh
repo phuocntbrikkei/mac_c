@@ -44,6 +44,16 @@ if [ "$HOST_OS" = "darwin" ]; then
     # ScreenCaptureKit, link kéo theo @rpath/libswiftCoreMedia.dylib mà binary Go không có
     # LC_RPATH -> dyld "Library not loaded ... no LC_RPATH's found", app chết ngay khi mở.
     # Thêm rpath /usr/lib/swift làm lưới an toàn nếu sau này có framework Swift khác.
+    # Go 1.25+ bỏ macOS 11 (runtime build cho macOS 12/13) -> app chết trên máy SV macOS 11/12.
+    # Bắt buộc Go <= 1.24 (bản cuối chạy macOS 11). go.mod client = 1.23.
+    GO_MINOR=$(go env GOVERSION | sed -E 's/^go1\.([0-9]+).*/\1/')
+    if [ -n "$GO_MINOR" ] && [ "$GO_MINOR" -ge 25 ] 2>/dev/null; then
+        echo "[!] LỖI: đang dùng $(go env GOVERSION) — bản build sẽ KHÔNG chạy trên macOS 11/12."
+        echo "    Cài Go 1.24.x rồi build lại (vd: brew install go@1.24; export PATH=\"\$(brew --prefix go@1.24)/bin:\$PATH\")"
+        echo "    và đặt GOTOOLCHAIN=local để Go không tự tải bản mới."
+        exit 1
+    fi
+    export GOTOOLCHAIN=local
     export MACOSX_DEPLOYMENT_TARGET=10.13
     export CGO_CFLAGS="${CGO_CFLAGS:-} -mmacosx-version-min=10.13"
     export CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=10.13 -Wl,-rpath,/usr/lib/swift"
